@@ -1,28 +1,75 @@
 # wg-obfuscator-tuned
 
-Проверенный вариант UDP-транспорта [ClusterM/wg-obfuscator](https://github.com/ClusterM/wg-obfuscator) для **Keenetic ARM64 Cortex-A53** и **Linux VPS x86-64**. Основан на commit `7008e0ce1ea71a39ce4b50ec9c10d2ce50e9183f`, upstream version1.6. Версия упаковки этого проекта: **0.1.0-tuned**.
+����������� ������� UDP-���������� [ClusterM/wg-obfuscator](https://github.com/ClusterM/wg-obfuscator) ��� **Keenetic ARM64 Cortex-A53** � **Linux VPS x86-64**. ������� �� commit `7008e0ce1ea71a39ce4b50ec9c10d2ce50e9183f`, upstream version1.6. ������ �������� ����� �������: **0.1.0-tuned**.
 
-Клиентская и серверная сборки используют один исходный код с разными целевыми архитектурами и конфигурациями. WireGuard, веб-панель, ключи, маршруты и назначения устройств настраиваются отдельно.
+���������� � ��������� ������ ���������� ���� �������� ��� � ������� �������� ������������� � ��������������. WireGuard, ���-������, �����, �������� � ���������� ��������� ������������� ��������.
 
-## Изменения
+## ��������� ����� ��������
 
-- До32 пакетов обрабатывается за событие готовности сокета, затем цикл обслуживает другие события/таймеры.
-- Для UDP-сокетов процесса запрашивается receive buffer1 МиБ и send buffer512 КиБ. Фактический размер зависит от системных пределов; в проверенной Linux-конфигурации наблюдалось2 МиБ/1 МиБ.
-- ARM64-сборка: `-O3 -mcpu=cortex-a53`; серверная: `-O3 -mtune=generic`. Обе статические.
-- Формат обфускации, кодек и шифрование WireGuard не менялись. Проверялись AUTO/STUN и реальная передача HTTPS/iperf в исходном развёртывании.
+���������� ��������� **������ ��������� UDP-���������** � ��� ������������ WireGuard. �������������� VPS Linux x86-64 � systemd � Keenetic � Entware aarch64/Cortex-A53. ��������� �� root � SSH ���������������� ����������. ������ ����������� ����������� �� ���������.
 
-Это самостоятельный вариант транспорта, с сохранением авторства upstream. PCA/Phobos-панель и расширения Phobos MEDIA/TLS/SOCKS5 в этот репозиторий не входят; для таких расширений нужна совместимая сборка соответствующего проекта.
+������ ��������� �������� ��� ���, ��������, ������ � ������. ������� UDP-���� � ������������ ����� �������� � ������ ��� ����������. ���������� �� �������� NDM, �� ������ � �� �������� VPN-����������, ��������, ���������� ���������, ��������, firewall/NAT, DNS � sysctl.
 
-## Готовые проверенные сборки
+**VPS** � `127.0.0.1:51820` �������� �� endpoint ������� ������������� WireGuard. ����� ������ ������� UDP-���� `24443`:
 
-| Назначение | Файл |
+```sh
+(umask 077; f=$(mktemp) && trap 'rm -f "$f"' 0 && curl -fsSL --proto '=https' --proto-redir '=https' https://raw.githubusercontent.com/Bober-Den/wg-obfuscator-tuned/main/install.sh -o "$f" && sh "$f" vps --name main --target 127.0.0.1:51820 --listen-port 24443)
+```
+
+���� ���������� ������������ �� VPS � ����������� � `/usr/local/lib/wgot/main/shared-key.txt` � ������� `600`; � ����� �� �� ��������. ���� �� ���� ����� �� Keenetic. �������� ��� �������� ���������� ��������; ��� �� ��������� ���� WireGuard.
+
+**Keenetic, Entware SSH** � ���������������� ����� `198.51.100.10` �������� �� IPv4 ������ VPS. ���������� ������ �������� ��� �� ����; ��� ��������������� ������� ����� �������� `--key-file /opt/etc/wgot-shared.key` � ������� ���������� ������:
+
+```sh
+(umask 077; f=$(mktemp) && trap 'rm -f "$f"' 0 && curl -fsSL --proto '=https' --proto-redir '=https' https://raw.githubusercontent.com/Bober-Den/wg-obfuscator-tuned/main/install.sh -o "$f" && sh "$f" keenetic --name main --target 198.51.100.10:24443 --listen-port 13365)
+```
+
+Keenetic ������� ������ `127.0.0.1:13365`. ����������� WireGuard � ����� endpoint ����������� �������� �������: ���������� �� ����������� ����������� VPN. ��� �������� ������ ����������� �������� ��� ��� ���������� ���������. �� VPS ������ � ���������� UDP-����� ����� ��������� �������� � ������������ firewall, ���� �� ������.
+
+### ��������� �����������
+
+��������� ������� ���� �������� ������ � ��������� ������������. ��� ���������� ����������� ��������� ������� ���������������� `GITHUB_TOKEN` � ������ ������ Contents ����� �����������. ����� �� ��������� � ������� ��� URL; ��������� ������� �������� ��� curl ����� stdin, � ���������� � ����� ��������� ���� � ������� `600`.
+
+VPS:
+
+```sh
+(umask 077; f=$(mktemp) && trap 'rm -f "$f"' 0 && printf 'header = "Authorization: Bearer %s"\n' "${GITHUB_TOKEN:?Export a read-only GITHUB_TOKEN first}" | curl --config - -fsSL --proto '=https' --proto-redir '=https' -H 'Accept: application/vnd.github.raw+json' 'https://api.github.com/repos/Bober-Den/wg-obfuscator-tuned/contents/install.sh?ref=main' -o "$f" && sh "$f" vps --name main --target 127.0.0.1:51820 --listen-port 24443)
+```
+
+Keenetic:
+
+```sh
+(umask 077; f=$(mktemp) && trap 'rm -f "$f"' 0 && printf 'header = "Authorization: Bearer %s"\n' "${GITHUB_TOKEN:?Export a read-only GITHUB_TOKEN first}" | curl --config - -fsSL --proto '=https' --proto-redir '=https' -H 'Accept: application/vnd.github.raw+json' 'https://api.github.com/repos/Bober-Den/wg-obfuscator-tuned/contents/install.sh?ref=main' -o "$f" && sh "$f" keenetic --name main --target 198.51.100.10:24443 --listen-port 13365)
+```
+
+�� ��� ��������� ����� ����������� �������� � GitHub-����� �� �����:
+
+```sh
+sh install.sh vps --source-dir . --target 127.0.0.1:51820 --listen-port 24443
+sh install.sh keenetic --source-dir . --target 198.51.100.10:24443 --listen-port 13365 --key-file /opt/etc/wgot-shared.key
+```
+
+��� ������� ��� ������ ���������. ��������� `--dry-run` (���� ��� ������ � ��������), `--no-start` (��������� ��� ������� � �����������), `--listen-port auto` (��������� ���� �� `24000�24999`) � `--name second` ������� � [���������� �� ��������� � ������](docs/INSTALL.md). ��������� ����������� �� ���������� SHA256 � ����������� � ������������ commit, � �� �� ����������� `main`. ��� ����������� ������ ����������� �������� `main` � URL �� ����������� commit.
+
+## ���������
+
+- ��32 ������� �������������� �� ������� ���������� ������, ����� ���� ����������� ������ �������/�������.
+- ��� UDP-������� �������� ������������� receive buffer1 ��� � send buffer512 ���. ����������� ������ ������� �� ��������� ��������; � ����������� Linux-������������ �����������2 ���/1 ���.
+- ARM64-������: `-O3 -mcpu=cortex-a53`; ���������: `-O3 -mtune=generic`. ��� �����������.
+- ������ ����������, ����� � ���������� WireGuard �� ��������. ����������� AUTO/STUN � �������� �������� HTTPS/iperf � �������� ������������.
+
+��� ��������������� ������� ����������, � ����������� ��������� upstream. PCA/Phobos-������ � ���������� Phobos MEDIA/TLS/SOCKS5 � ���� ����������� �� ������; ��� ����� ���������� ����� ����������� ������ ���������������� �������.
+
+## ������� ����������� ������
+
+| ���������� | ���� |
 | --- | --- |
 | Keenetic Entware, aarch64/Cortex-A53 | [prebuilt/keenetic-arm64/wgot-client](prebuilt/keenetic-arm64/wgot-client) |
 | Linux VPS, x86-64 | [prebuilt/linux-x86_64/wgot-server](prebuilt/linux-x86_64/wgot-server) |
 
-Это сохранённые бинарники, прошедшие прежние аппаратные проверки, а не новые бинарники CI. Полный соответствующий исходный код включён в `src/`. Архитектуру нужно проверить через `uname -m` до запуска. Для других Keenetic CPU эта ARM64-сборка не подходит автоматически.
+��� ����������� ���������, ��������� ������� ���������� ��������, � �� ����� ��������� CI. ������ ��������������� �������� ��� ������� � `src/`. ����������� ����� ��������� ����� `uname -m` �� �������. ��� ������ Keenetic CPU ��� ARM64-������ �� �������� �������������.
 
-Из корня репозитория на Linux:
+�� ����� ����������� �� Linux:
 
 ```sh
 sha256sum -c prebuilt/SHA256SUMS
@@ -30,11 +77,11 @@ chmod +x prebuilt/linux-x86_64/wgot-server
 prebuilt/linux-x86_64/wgot-server --help
 ```
 
-На Keenetic проверяется соответствующий ARM64-файл. Имена процессов разделены (`wgot-client`/`wgot-server`), чтобы не конфликтовать с другими обфускаторами. Автоматической установки на действующие VPS и роутеры этот проект не выполняет.
+�� Keenetic ����������� ��������������� ARM64-����. ���������� �������� �������� ��� ��������� ������ ��� ������� ����������: `wgotc-���` / `wgots-���`, ����� ��������� ��� � ������� �������������.
 
-## Сборка и тесты
+## ������ � �����
 
-Linux x86-64, GCC/make/Python3; для ARM64 дополнительно нужны `gcc-aarch64-linux-gnu` и `libc6-dev-arm64-cross`.
+Linux x86-64, GCC/make/Python3; ��� ARM64 ������������� ����� `gcc-aarch64-linux-gnu` � `libc6-dev-arm64-cross`.
 
 ```sh
 bash scripts/build.sh all
@@ -42,13 +89,14 @@ bash scripts/test.sh
 python3 tests/udp_roundtrip.py --binary dist/linux-x86_64/wgot-server
 ```
 
-В GitHub Actions выполняются обе сборки, проверка CRC-кодека с ASan/UBSan, loopback-тесты AUTO/STUN и ARM64 smoke-тест под QEMU. Скачиваемые результаты помещаются в Actions artifacts. Workflow запускается при push/PR и вручную; секреты и доступ к рабочим серверам ему не нужны. Получившиеся в CI хеши могут отличаться от сохранённых prebuilt из-за версии компилятора — это отдельные сборки, требующие проверки перед заменой на устройстве.
+� GitHub Actions ����������� ��� ������, �������� CRC-������ � ASan/UBSan, loopback-����� AUTO/STUN � ARM64 smoke-���� ��� QEMU. ����������� ���������� ���������� � Actions artifacts. Workflow ����������� ��� push/PR � �������; ������� � ������ � ������� �������� ��� �� �����. ������������ � CI ���� ����� ���������� �� ����������� prebuilt ��-�� ������ ����������� � ��� ��������� ������, ��������� �������� ����� ������� �� ����������.
 
-## Документация
+## ������������
 
-- [Развёртывание и безопасный откат](docs/DEPLOYMENT.md).
-- [Измеренные эффекты и ограничения](docs/VALIDATION.md).
-- [Происхождение исходников и сборок](SOURCE-PROVENANCE.json).
-- [Изменения](CHANGELOG.md), [авторство и сторонние компоненты](THIRD-PARTY-NOTICES.md).
+- [������������ � ���������� �����](docs/DEPLOYMENT.md).
+- [��������� �����������, �������� � �������� ���������� ����������](docs/INSTALL.md).
+- [���������� ������� � �����������](docs/VALIDATION.md).
+- [������������� ���������� � ������](SOURCE-PROVENANCE.json).
+- [���������](CHANGELOG.md), [��������� � ��������� ����������](THIRD-PARTY-NOTICES.md).
 
-В репозитории только исходники, шаблоны и артефакты. Рабочие адреса, пользовательские конфиги, ключи, пароли и токены не включены.
+� ����������� ������ ���������, ������� � ���������. ������� ������, ���������������� �������, �����, ������ � ������ �� ��������.
