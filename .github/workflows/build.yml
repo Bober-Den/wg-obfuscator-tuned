@@ -17,6 +17,7 @@ jobs:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           persist-credentials: false
+          fetch-depth: 0
       - name: Install build tools
         run: |
           sudo apt-get update -qq
@@ -30,6 +31,18 @@ jobs:
         run: sha256sum -c prebuilt/SHA256SUMS
       - name: Build both architectures
         run: bash scripts/build.sh all
+      - name: Rebuild unchanged ARM64 control with the same compiler
+        run: |
+          mkdir -p build/control-root dist/control-arm64
+          git archive ee31d91e01e015cf2b16ec3860a96fa7a3b08942 src | tar -x -C build/control-root
+          make -C build/control-root/src RELEASE=1 CC=aarch64-linux-gnu-gcc CFLAGS='-O3 -mcpu=cortex-a53 -Wall -pthread' LDFLAGS='-static -s -pthread' TARGETPLATFORM=linux/arm64
+          cp build/control-root/src/wg-obfuscator dist/control-arm64/wgot-client
+          chmod 755 dist/control-arm64/wgot-client
+          sha256sum dist/control-arm64/wgot-client >> dist/SHA256SUMS
+      - name: Batch I/O error paths under ASan and UBSan
+        run: |
+          gcc -O1 -g -Wall -fsanitize=address,undefined -fno-omit-frame-pointer -I src tests/mmsg-io.c -o build/tests-mmsg-io
+          build/tests-mmsg-io
       - name: Codec compatibility under ASan and UBSan
         run: bash scripts/test.sh
       - name: Native transport loopback
@@ -38,6 +51,12 @@ jobs:
         run: |
           qemu-aarch64 dist/keenetic-arm64/wgot-client --help
           python3 tests/udp_roundtrip.py --binary dist/keenetic-arm64/wgot-client --runner qemu-aarch64
+      - name: Native and mixed-version two-client burst compatibility
+        run: |
+          chmod +x prebuilt/linux-x86_64/wgot-server
+          python3 tests/mmsg_roundtrip.py --client dist/linux-x86_64/wgot-server --server dist/linux-x86_64/wgot-server
+          python3 tests/mmsg_roundtrip.py --client dist/keenetic-arm64/wgot-client --client-runner qemu-aarch64 --server prebuilt/linux-x86_64/wgot-server
+          python3 tests/mmsg_roundtrip.py --client dist/control-arm64/wgot-client --client-runner qemu-aarch64 --server dist/linux-x86_64/wgot-server
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: transport-${{ github.sha }}

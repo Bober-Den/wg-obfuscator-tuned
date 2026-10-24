@@ -1,3 +1,6 @@
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -15,6 +18,9 @@
 #include "obfuscation.h"
 #include "uthash.h"
 #include "masking.h"
+#ifdef WGOT_MMSG
+#include "mmsg_io.h"
+#endif
 
 /* PCA client-only transport tuning: bounded drains, no wire-format changes. */
 static void pca_udp_buffers(int fd) {
@@ -72,6 +78,10 @@ static int resolve_bindings_count = 0;
 static void signal_handler(int signal) {
     client_entry_t *current_entry, *tmp;
 
+    // Shutdown may discard queued data, matching the original signal behavior.
+#ifdef WGOT_MMSG
+    wgot_batch_stats();
+#endif
     // Close all connections and clean up
     if (listen_sock) {
         close(listen_sock);
@@ -646,7 +656,9 @@ int main(int argc, char *argv[]) {
     struct sockaddr_in 
         listen_addr, // Address for listening socket, for receiving data from the client
         forward_addr; // Address for forwarding socket, for sending data to the server
+#ifndef WGOT_MMSG
     uint8_t full_buffer[BUFFER_SIZE + PREBUFFER_SIZE];
+#endif
     char target_host[256] = {0};
     int target_port = -1;
     int key_length = 0;
@@ -982,17 +994,37 @@ int main(int argc, char *argv[]) {
                 continue;
             }
 #endif
-            for (int packet_batch = 0; packet_batch < 32; ++packet_batch) {
+#ifdef WGOT_MMSG
+#ifdef USE_EPOLL
+            int batch_fd = event->data.fd == listen_sock ? listen_sock : ((client_entry_t *)event->data.ptr)->server_sock;
+#else
+            int batch_fd = pollfds[e].fd;
+#endif
+            int batch_count = wgot_batch_receive(batch_fd);
+            if (batch_count < 0) {
+                if (errno != EAGAIN && errno != EWOULDBLOCK && errno != EINTR) serror_level(LL_DEBUG, "recvmmsg");
+                continue;
+            }
+#else
+            int batch_count = 32;
+#endif
+            for (int packet_batch = 0; packet_batch < batch_count; ++packet_batch) {
 #ifdef USE_EPOLL
             if (event->data.fd == listen_sock) {
 #else
             if (pollfds[e].fd == listen_sock) {
 #endif
                 /* *** Handle incoming data from the clients *** */
+#ifdef WGOT_MMSG
+                uint8_t *buffer = wgot_rx_data[packet_batch] + PREBUFFER_SIZE;
+                struct sockaddr_in sender_addr = wgot_rx_addr[packet_batch];
+                int length = (int)wgot_rx_msg[packet_batch].msg_len;
+#else
                 uint8_t *buffer = full_buffer + PREBUFFER_SIZE;
                 struct sockaddr_in sender_addr = {0};
                 socklen_t sender_addr_len = sizeof(sender_addr);
                 int length = recvfrom(listen_sock, buffer, BUFFER_SIZE, MSG_TRUNC | MSG_DONTWAIT, (struct sockaddr *)&sender_addr, &sender_addr_len);
+#endif
                 if (length < 0) {
                     // A readiness notification does not guarantee that there is something
                     // to read by the time we get here, so an empty socket is not an error
@@ -1148,12 +1180,18 @@ int main(int argc, char *argv[]) {
 
                 log_hexdump(LL_TRACE, (!obfuscated && !client_entry->client_clean) ? "X->: " : "O->: ", buffer, length);
 
+#ifdef WGOT_MMSG
+                length = wgot_batch_queue(client_entry->server_sock, buffer, length, NULL, client_entry, now, 0);
+#else
                 length = send(client_entry->server_sock, buffer, length, 0);
+#endif
                 if (length < 0) {
                     serror_level(LL_DEBUG, "sendto %s:%d", target_host, target_port);
                     continue;
                 }
+#ifndef WGOT_MMSG
                 client_entry->last_activity_time = now;
+#endif
             } else { // if (event->data.fd == listen_sock)
                 /* *** Handle data from the server *** */
 #ifdef USE_EPOLL
@@ -1161,8 +1199,13 @@ int main(int argc, char *argv[]) {
 #else
                 client_entry_t *client_entry = find_by_server_sock(pollfds[e].fd);
 #endif
+#ifdef WGOT_MMSG
+                uint8_t *buffer = wgot_rx_data[packet_batch] + PREBUFFER_SIZE;
+                int length = (int)wgot_rx_msg[packet_batch].msg_len;
+#else
                 uint8_t *buffer = full_buffer + PREBUFFER_SIZE;
                 int length = recv(client_entry->server_sock, buffer, BUFFER_SIZE, MSG_TRUNC | MSG_DONTWAIT);
+#endif
                 if (length < 0) {
                     if (errno != EAGAIN && errno != EWOULDBLOCK) {
                         serror_level(LL_DEBUG, "recv from server");
@@ -1284,15 +1327,24 @@ int main(int argc, char *argv[]) {
                 log_hexdump(LL_TRACE, (!obfuscated && !client_entry->client_clean) ? "<-X: " : "<-O: ", buffer, length);
 
                 // Send the response back to the original client
+#ifdef WGOT_MMSG
+                length = wgot_batch_queue(listen_sock, buffer, length, &client_entry->client_addr, client_entry, now, 1);
+#else
                 length = sendto(listen_sock, buffer, length, 0, (struct sockaddr *)&client_entry->client_addr, sizeof(client_entry->client_addr));
+#endif
                 if (length < 0) {
                     serror_level(LL_DEBUG, "sendto %s:%d", inet_ntoa(client_entry->client_addr.sin_addr), ntohs(client_entry->client_addr.sin_port));
                     continue;
                 }
+#ifndef WGOT_MMSG
                 client_entry->last_activity_time = now;
                 client_entry->last_incoming_time = now;
+#endif
             } // if (event->data.fd != listen_sock)
             } // bounded packet drain
+#ifdef WGOT_MMSG
+            wgot_batch_flush();
+#endif
         } // for (int e = 0; e < events_n; e++)
 
         if (now - last_cleanup_time >= ITERATE_INTERVAL) {

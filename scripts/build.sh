@@ -14,7 +14,7 @@ for target in $targets; do
  mkdir -p "$build" "$dest"
  cp "$ROOT"/src/*.c "$ROOT"/src/*.h "$ROOT/src/Makefile" "$build/"
  make -C "$build" clean
- make -C "$build" RELEASE=1 CC="$compiler" CFLAGS="$flags -Wall -pthread" LDFLAGS='-static -s -pthread' TARGETPLATFORM="$arch" COMMIT=7008e0ce
+ make -C "$build" RELEASE=1 CC="$compiler" CFLAGS="$flags -Wall -pthread -DWGOT_MMSG" LDFLAGS='-static -s -pthread' TARGETPLATFORM="$arch" COMMIT=7008e0ce
  cp "$build/wg-obfuscator" "$dest/$output"
  chmod 755 "$dest/$output"
  cp "$ROOT/LICENSE" "$dest/LICENSE"
