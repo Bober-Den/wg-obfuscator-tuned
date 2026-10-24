@@ -23,8 +23,8 @@ For a private repository, export GITHUB_TOKEN with read access before download.
 EOF
 }
 
-MODE= NAME=main PORT=auto TARGET= KEY_FILE= SOURCE_DIR= DRY=no START=yes
-STAGE= INSTANCE_CREATED=no SERVICE_CREATED=no COMMITTED=no ENABLE_ATTEMPTED=no
+MODE='' NAME=main PORT=auto TARGET='' KEY_FILE='' SOURCE_DIR='' DRY=no START=yes
+STAGE='' INSTANCE_CREATED=no SERVICE_CREATED=no COMMITTED=no ENABLE_ATTEMPTED=no
 TTY_STATE=
 cleanup() {
     code=$?
@@ -90,7 +90,7 @@ valid_port() {
 }
 case "$TARGET" in ''|*[!a-zA-Z0-9.:-]*|*:*:*) die 'Target must be an IPv4 address or DNS name followed by :PORT' ;; esac
 HOST=${TARGET%:*}; TARGET_PORT=${TARGET##*:}
-[ "$HOST" != "$TARGET" ] && [ -n "$HOST" ] || die 'Target requires HOST:PORT'
+if [ "$HOST" = "$TARGET" ] || [ -z "$HOST" ]; then die 'Target requires HOST:PORT'; fi
 case "$HOST" in -*|.*|0.0.0.0) die 'Invalid target host' ;; esac
 valid_port "$TARGET_PORT" || die 'Target port must be 1024-65535 (no leading zeros)'
 if [ "$PORT" != auto ]; then valid_port "$PORT" || die 'Invalid listen port'; fi
@@ -110,7 +110,7 @@ if [ "$MODE" = vps ]; then
     HASH=1e014cb01b9da9b5ffc7f51c6962bdabd6d5bf49e87190e6310f47b59f4c55cf
 else
     [ "$ARCH" = aarch64 ] || die 'Keenetic prebuilt requires aarch64/Cortex-A53; MIPS and ARM32 are unsupported'
-    [ -x /opt/bin/sh ] && [ -d /opt/etc/init.d ] || die 'Entware must already be installed'
+    if [ ! -x /opt/bin/sh ] || [ ! -d /opt/etc/init.d ]; then die 'Entware must already be installed'; fi
     # Entware tools take precedence; keep system tools available.
     PATH=/opt/bin:/opt/sbin:$PATH; export PATH
     BASE=/opt/etc/wgot
@@ -123,7 +123,7 @@ fi
 DIR=$BASE/$NAME
 [ ! -L "$BASE" ] || die "Refusing symlink: $BASE"
 for path in "$DIR" "$SERVICE"; do
-    [ ! -e "$path" ] && [ ! -L "$path" ] || die "Already exists; nothing overwritten: $path"
+    if [ -e "$path" ] || [ -L "$path" ]; then die "Already exists; nothing overwritten: $path"; fi
 done
 if [ "$MODE" = vps ]; then
     # Includes units supplied outside /etc, aliases, and transient units.
@@ -133,7 +133,7 @@ fi
 
 # Inspect both families, including wildcard/IPv6 dual-stack listeners. Fail closed
 # if either table is unavailable; do not rely on netstat output formats.
-[ -r /proc/net/udp ] && [ -r /proc/net/udp6 ] || die 'Cannot inspect UDP sockets in /proc/net'
+if [ ! -r /proc/net/udp ] || [ ! -r /proc/net/udp6 ]; then die 'Cannot inspect UDP sockets in /proc/net'; fi
 command -v awk >/dev/null 2>&1 || die 'awk is required to inspect UDP ports'
 port_busy() {
     hex=$(printf '%04X' "$1")
@@ -192,7 +192,7 @@ chmod 700 "$STAGE/binary"
 "$STAGE/binary" --help >/dev/null || die 'Binary cannot run on this CPU/OS'
 
 if [ -n "$KEY_FILE" ]; then
-    [ -f "$KEY_FILE" ] && [ -r "$KEY_FILE" ] || die 'Key file is not readable'
+    if [ ! -f "$KEY_FILE" ] || [ ! -r "$KEY_FILE" ]; then die 'Key file is not readable'; fi
     [ "$(wc -c <"$KEY_FILE")" -le 130 ] || die 'Key file is too large'
     KEY=$(cat "$KEY_FILE")
 elif [ "$MODE" = vps ]; then
@@ -207,7 +207,7 @@ else
     printf '\n' >/dev/tty
 fi
 case "$KEY" in ''|*[!a-zA-Z0-9_+=./-]*) die 'Key must use letters/digits or _+=./- without spaces or newlines' ;; esac
-[ "${#KEY}" -ge 32 ] && [ "${#KEY}" -le 128 ] || die 'Key must be 32-128 characters'
+if [ "${#KEY}" -lt 32 ] || [ "${#KEY}" -gt 128 ]; then die 'Key must be 32-128 characters'; fi
 
 # Create a new instance atomically. Existing instances are never upgraded in place.
 mkdir -p "$BASE"
