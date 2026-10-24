@@ -231,7 +231,7 @@ masking = $MASK
 allow-clean = false
 max-dummy = 4
 in-timeout = 120
-verbose = WARNINGS
+verbose = 1
 EOF
 unset KEY
 cat >"$DIR/install.info" <<EOF
