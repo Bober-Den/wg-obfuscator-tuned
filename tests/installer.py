@@ -36,6 +36,7 @@ class InstallerTests(unittest.TestCase):
 #include <sys/socket.h>
 #include <netinet/in.h>
 int main(int argc, char **argv) {
+    if (getenv("GITHUB_TOKEN")) return 7;
     if (argc == 2 && !strcmp(argv[1], "--help")) return 0;
     if (getenv("WGOT_FAIL_BINARY")) return 2;
     if (argc != 3 || strcmp(argv[1], "-c")) return 3;
@@ -267,6 +268,13 @@ esac
         self.assertTrue((self.instance() / 'transport.conf').exists())
         self.assertTrue((self.fs / 'etc/systemd/system/wgot-main.service').exists())
 
+    def test_download_token_not_inherited_by_binary(self):
+        self.env['GITHUB_TOKEN'] = 'synthetic_readonly_token'
+        self.run_install('--no-start')
+        self.assertNotIn('synthetic_readonly_token',
+                         ''.join(p.read_text(errors='replace') for p in self.instance().iterdir()
+                                 if p.name != 'wgots-main'))
+
     def test_generated_config_with_recorded_binary(self):
         # The mock transport cannot validate the real config parser. Exercise the
         # recorded x86 prebuilt too, with only its bind address restricted to lo.
@@ -318,6 +326,20 @@ esac
                                 capture_output=True, text=True, timeout=15)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertFalse((instance / 'pid').exists())
+
+    def test_keenetic_same_binary_wrong_config_not_stopped(self):
+        self.run_install('--no-start', mode='keenetic')
+        instance = self.instance('keenetic')
+        other_config = self.base / 'unrelated.conf'
+        other_config.write_text('source-lport = 0\n')
+        proc = subprocess.Popen([str(instance / 'wgotc-main'), '-c', str(other_config)], env=self.env)
+        self.addCleanup(lambda: (proc.terminate(), proc.wait()) if proc.poll() is None else None)
+        time.sleep(0.1)
+        (instance / 'pid').write_text(str(proc.pid))
+        result = subprocess.run(['sh', str(instance / 'control'), 'stop'], env=self.env,
+                                capture_output=True, text=True, timeout=5)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIsNone(proc.poll())
 
     def test_keenetic_failed_start_cleans_enabled_flag(self):
         self.env['WGOT_FAIL_BINARY'] = 'yes'

@@ -189,6 +189,7 @@ else
             || die 'Download failed. Private repository: use GITHUB_TOKEN or --source-dir'
     fi
 fi
+unset GITHUB_TOKEN
 ACTUAL=$(sha256sum "$STAGE/binary"); ACTUAL=${ACTUAL%% *}
 [ "$ACTUAL" = "$HASH" ] || die 'Binary SHA256 mismatch; nothing installed'
 chmod 700 "$STAGE/binary"
@@ -280,6 +281,7 @@ else
     cat >"$DIR/control" <<EOF
 #!/opt/bin/sh
 set -eu
+unset GITHUB_TOKEN
 PATH=/opt/bin:/opt/sbin:/sbin:/bin:/usr/sbin:/usr/bin
 DIR=$DIR
 BIN=$DIR/$PROCESS
