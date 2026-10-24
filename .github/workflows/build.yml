@@ -20,7 +20,12 @@ jobs:
       - name: Install build tools
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends build-essential gcc-aarch64-linux-gnu libc6-dev-arm64-cross qemu-user python3
+          sudo apt-get install -y --no-install-recommends build-essential gcc-aarch64-linux-gnu libc6-dev-arm64-cross qemu-user python3 shellcheck
+      - name: Installer syntax and isolation regression tests
+        run: |
+          sh -n install.sh
+          shellcheck install.sh
+          python3 tests/installer.py
       - name: Verify recorded binaries
         run: sha256sum -c prebuilt/SHA256SUMS
       - name: Build both architectures
