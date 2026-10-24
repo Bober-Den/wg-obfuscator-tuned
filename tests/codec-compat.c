@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "wg-obfuscator.h"
 #include "obfuscation.h"
 static void reference(uint8_t *p,int n,const char *key,int klen) {
     uint8_t crc=0;
