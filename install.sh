@@ -33,7 +33,10 @@ cleanup() {
     if [ "$INSTANCE_CREATED" = yes ] && [ "$COMMITTED" != yes ]; then
         if [ "$MODE" = vps ] && [ "$SERVICE_CREATED" = yes ]; then
             if [ "$ENABLE_ATTEMPTED" = yes ]; then
-                systemctl disable --now "$UNIT" >/dev/null 2>&1 || :
+                if ! systemctl disable --now "$UNIT" >/dev/null 2>&1; then
+                    printf 'wgot: rollback could not stop its unit; retained %s and %s for inspection.\n' "$DIR" "$SERVICE" >&2
+                    INSTANCE_CREATED=no
+                fi
             fi
         elif [ "$MODE" = keenetic ] && [ -x "$DIR/control" ]; then
             if ! "$DIR/control" stop >/dev/null 2>&1; then
@@ -42,13 +45,13 @@ cleanup() {
             fi
         fi
         if [ "$INSTANCE_CREATED" = yes ]; then
-        if [ "$SERVICE_CREATED" = yes ]; then rm -f "$SERVICE"; fi
-        if [ "$MODE" = vps ] && [ "$SERVICE_CREATED" = yes ]; then systemctl daemon-reload >/dev/null 2>&1 || :; fi
-        # Only our fixed filenames; never recursively remove a shared directory.
-        rm -f "$DIR/$PROCESS" "$DIR/transport.conf" "$DIR/shared-key.txt" \
-            "$DIR/control" "$DIR/install.info" "$DIR/runtime.log" "$DIR/pid" "$DIR/enabled"
-        rmdir "$DIR" 2>/dev/null || :
-        printf 'wgot: installation failed; removed this new instance only.\n' >&2
+            if [ "$SERVICE_CREATED" = yes ]; then rm -f "$SERVICE"; fi
+            if [ "$MODE" = vps ] && [ "$SERVICE_CREATED" = yes ]; then systemctl daemon-reload >/dev/null 2>&1 || :; fi
+            # Only our fixed filenames; never recursively remove a shared directory.
+            rm -f "$DIR/$PROCESS" "$DIR/transport.conf" "$DIR/shared-key.txt" \
+                "$DIR/control" "$DIR/install.info" "$DIR/runtime.log" "$DIR/pid" "$DIR/enabled"
+            rmdir "$DIR" 2>/dev/null || :
+            printf 'wgot: installation failed; removed this new instance only.\n' >&2
         fi
     fi
     if [ -n "$STAGE" ]; then
