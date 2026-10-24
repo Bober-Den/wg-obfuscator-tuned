@@ -33,11 +33,14 @@ def exercise(binary, runner, mask):
             ('client', client_port, server_port, mask),
         ]
         processes = []
+        logs = []
         try:
             for name, listen, target, masking in configurations:
                 config = base / (name + '.conf')
-                config.write_text(f'[{name}]\nsource-if = 127.0.0.1\nsource-lport = {listen}\ntarget = 127.0.0.1:{target}\nkey = loopback-test-only-key\nmasking = {masking}\nmax-dummy = 4\nverbose = WARNINGS\n', encoding='utf-8')
-                processes.append(subprocess.Popen([*runner, str(binary), '-c', str(config)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL))
+                config.write_text(f'[{name}]\nsource-if = 127.0.0.1\nsource-lport = {listen}\ntarget = 127.0.0.1:{target}\nkey = loopback-test-only-key\nmasking = {masking}\nmax-dummy = 4\nverbose = WARN\n', encoding='utf-8')
+                logfile = open(base / (name + '.log'), 'wb')
+                logs.append(logfile)
+                processes.append(subprocess.Popen([*runner, str(binary), '-c', str(config)], stdout=logfile, stderr=subprocess.STDOUT))
             request = packet(1, 148)
             deadline = time.monotonic() + 8
             while True:
@@ -53,6 +56,7 @@ def exercise(binary, runner, mask):
             reply = packet(2, 92)
             backend.sendto(reply, remote)
             assert peer.recvfrom(65535)[0] == reply
+            backend.settimeout(3)
             checked = 0
             for size in [32, 64, 256, 1024, 1380]:
                 payload = packet(4, size)
@@ -65,6 +69,11 @@ def exercise(binary, runner, mask):
                 checked += 2
             assert all(p.poll() is None for p in processes)
             print(f'UDP_LOOPBACK_OK masking={mask} data_packets={checked}')
+        except Exception:
+            for logfile in logs:
+                logfile.flush()
+                print(Path(logfile.name).read_text(encoding='utf-8', errors='replace')[-4000:])
+            raise
         finally:
             for proc in processes:
                 proc.terminate()
@@ -73,6 +82,8 @@ def exercise(binary, runner, mask):
                     proc.wait(timeout=3)
                 except subprocess.TimeoutExpired:
                     proc.kill(); proc.wait(timeout=3)
+            for logfile in logs:
+                logfile.close()
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
