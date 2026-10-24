@@ -1,0 +1,10 @@
+/build/
+/dist/
+__pycache__/
+*.pyc
+.env
+*.key
+*.pem
+*.local.conf
+/access/
+/secrets/

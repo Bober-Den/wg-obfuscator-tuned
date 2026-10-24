@@ -1,0 +1,8 @@
+#!/bin/sh
+PATH=/opt/bin:/opt/sbin:/sbin:/bin:/usr/sbin:/usr/bin
+ENABLED=no
+PROCS=wgot-client
+ARGS="-c /opt/etc/wgot/client.conf"
+PREARGS=""
+DESC="Tuned WireGuard transport client"
+. /opt/etc/init.d/rc.func

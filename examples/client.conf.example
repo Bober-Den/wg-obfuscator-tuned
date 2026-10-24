@@ -1,0 +1,9 @@
+[tuned-client]
+source-if = 127.0.0.1
+source-lport = 13365
+target = 198.51.100.10:5443
+key = REPLACE_WITH_A_PRIVATE_SHARED_KEY
+masking = STUN
+max-dummy = 4
+in-timeout = 120
+verbose = INFO

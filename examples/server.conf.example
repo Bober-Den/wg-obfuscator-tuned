@@ -1,0 +1,9 @@
+[tuned-server]
+source-if = 0.0.0.0
+source-lport = 5443
+target = 127.0.0.1:51820
+key = REPLACE_WITH_THE_SAME_PRIVATE_SHARED_KEY
+masking = AUTO
+allow-clean = false
+max-dummy = 4
+verbose = INFO

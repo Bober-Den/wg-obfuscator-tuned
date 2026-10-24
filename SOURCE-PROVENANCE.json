@@ -1,0 +1,42 @@
+{
+  "packaging_version": "0.1.0-tuned",
+  "upstream": {
+    "url": "https://github.com/ClusterM/wg-obfuscator",
+    "commit": "7008e0ce1ea71a39ce4b50ec9c10d2ce50e9183f",
+    "version": "1.6"
+  },
+  "transport_patch_sha256": "bdd4301a3eced778c18d86e712b4a3fec2a3f48563ae8a629d6873fda3d090db",
+  "max_packets_per_ready_socket": 32,
+  "receive_buffer_request_bytes": 1048576,
+  "send_buffer_request_bytes": 524288,
+  "wire_format_changed": false,
+  "source_sha256": {
+    "src/config.c": "19cfcc72c2ce52b904b73972429da3c2b58a390bff5310c4624b3c2b5d1f83ae",
+    "src/config.h": "535446c48c598a10ad5b905bb638d2e9dcd9e7dab13d017986fb1a71da2b7d5b",
+    "src/logging.c": "26e04a94e4927fd810558eb6094be3d4038f0aeb9449cc2f1a212182abbc9e30",
+    "src/Makefile": "e15b34dd3cf4ca15b1e329970910beb0ad2546230eb64b4ebb467a211fcc740b",
+    "src/masking.c": "cfc0dd339a1d3e450930390e724a609bf79294c96f3d6f5e74f841a16fac76b6",
+    "src/masking.h": "2ab330b6558172566335dacc0cb0ebf279df7b222fd2266120c04f7c1bc2f035",
+    "src/masking_handlers.h": "3914acc5846259c9a468ff5d7b0ef629727431ab973e1f03bf15fdb732e70599",
+    "src/masking_stun.c": "8831904cd6f0adf899aeb561096163285fbab3b042e1f7ffda278b897fdc0e75",
+    "src/masking_stun.h": "914a31cc591145813fd6f6c8407751c776ccb732ea3ccb9224f60bcf01152b67",
+    "src/mini_argp.h": "c460fdb318c1b0ba5a6ef8739623d8810cdffbdc2a63d5efe4236c46aa8110cd",
+    "src/obfuscation.c": "930f4d901ad90f592e5feb4021790a03b43f693e6d091f88f62d2c7d32eeff75",
+    "src/obfuscation.h": "be6d3f102aedb20ae63bc85863703d54eade01a488e07b9bd320550e1b523330",
+    "src/uthash.h": "61bf8a411bcd81f6e67fe8281001a444ebae51560b3df15ff13bb018fe51f18c",
+    "src/wg-obfuscator.c": "bdd4301a3eced778c18d86e712b4a3fec2a3f48563ae8a629d6873fda3d090db",
+    "src/wg-obfuscator.h": "7de9e8c45d331b2f1cfd97e5dbe1189d982b2bc8e956ef61289dc87cb0da27f5"
+  },
+  "prebuilt": [
+    {
+      "path": "prebuilt/keenetic-arm64/wgot-client",
+      "sha256": "6f71fae6dd8437e0e9c707495d49d0d8cb2a6fb992bea7e29d18a9076f4c70d1",
+      "validation": "previously exercised on ARM64 Keenetic or x86-64 VPS; not rebuilt during packaging"
+    },
+    {
+      "path": "prebuilt/linux-x86_64/wgot-server",
+      "sha256": "1e014cb01b9da9b5ffc7f51c6962bdabd6d5bf49e87190e6310f47b59f4c55cf",
+      "validation": "previously exercised on ARM64 Keenetic or x86-64 VPS; not rebuilt during packaging"
+    }
+  ]
+}
