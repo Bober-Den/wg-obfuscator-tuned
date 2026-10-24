@@ -9,8 +9,10 @@ import os
 from pathlib import Path
 import shutil
 import signal
+import socket
 import subprocess
 import tempfile
+import time
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -86,6 +88,7 @@ case "$1" in
     enable)
         if [ "${WGOT_FAIL_START:-}" = yes ]; then exit 1; fi
         printf '0: 00000000:5DC0 00000000:0000 07\n' >>"$WGOT_SOCKET_TABLE" ;;
+    disable) [ "${WGOT_FAIL_STOP:-}" != yes ] ;;
     is-active) [ "${WGOT_FAIL_ACTIVE:-}" != yes ] ;;
 esac
 ''')
@@ -255,6 +258,41 @@ esac
         secret = (self.instance() / 'shared-key.txt').read_text().strip()
         self.assertEqual(len(secret), 64)
         self.assertNotIn(secret, result.stdout + result.stderr)
+
+    def test_vps_failed_rollback_retains_instance(self):
+        self.env['WGOT_FAIL_START'] = 'yes'
+        self.env['WGOT_FAIL_STOP'] = 'yes'
+        result = self.run_install(success=False)
+        self.assertIn('retained', result.stderr)
+        self.assertTrue((self.instance() / 'transport.conf').exists())
+        self.assertTrue((self.fs / 'etc/systemd/system/wgot-main.service').exists())
+
+    def test_generated_config_with_recorded_binary(self):
+        # The mock transport cannot validate the real config parser. Exercise the
+        # recorded x86 prebuilt too, with only its bind address restricted to lo.
+        digest = hashlib.sha256(self.fake_binary.read_bytes()).hexdigest()
+        self.script.write_text(self.script.read_text().replace(digest, SERVER_HASH))
+        shutil.copyfile(ROOT / 'prebuilt/linux-x86_64/wgot-server',
+                        self.offline / 'prebuilt/linux-x86_64/wgot-server')
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+            sock.bind(('127.0.0.1', 0))
+            port = sock.getsockname()[1]
+        self.run_install('--no-start', '--listen-port', str(port), '--target', '127.0.0.1:51820')
+        config = self.instance() / 'transport.conf'
+        config.write_text(config.read_text().replace('0.0.0.0', '127.0.0.1'))
+        with (self.base / 'smoke.log').open('wb') as log:
+            proc = subprocess.Popen([str(self.instance() / 'wgots-main'), '-c', str(config)],
+                                    stdout=log, stderr=subprocess.STDOUT)
+            try:
+                time.sleep(0.3)
+                self.assertIsNone(proc.poll(), (self.base / 'smoke.log').read_text())
+                # Its UDP bind must be observable, rather than only a live PID.
+                with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as check:
+                    with self.assertRaises(OSError):
+                        check.bind(('127.0.0.1', port))
+            finally:
+                proc.terminate()
+                proc.wait(timeout=5)
 
     def test_keenetic_disabled_and_pid_reuse_safety(self):
         self.run_install('--no-start', mode='keenetic')
