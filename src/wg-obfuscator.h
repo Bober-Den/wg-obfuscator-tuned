@@ -22,6 +22,10 @@
 #define WG_OBFUSCATOR_VERSION "1.6"
 #define WG_OBFUSCATOR_GIT_REPO "https://github.com/ClusterM/wg-obfuscator"
 
+#ifdef WGOT_MMSG
+void wgot_batch_flush(void);
+#endif
+
 #define LL_DEFAULT      LL_INFO  // default logging level
 
 // Main parameters
